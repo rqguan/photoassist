@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>凸面镜摄影对焦计算器</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --border: #e5e7eb;
+    --text: #111827;
+    --subtle: #6b7280;
+    --accent: #0ea5e9;
+    --accent-soft: #e0f2fe;
+    --mirror: #0ea5e9;
+    --camera: #111827;
+    --object: #ef4444;
+    --image: #ef4444;
+    --axis: #9ca3af;
+    --focal: #a855f7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI",
+                 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px 40px;
+  }
+  header h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  header .subtitle {
+    color: var(--subtle);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .diagram-wrapper {
+    width: 100%;
+    aspect-ratio: 16 / 7;
+    min-height: 260px;
+    background: #fafbfc;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+  svg.diagram { width: 100%; height: 100%; display: block; }
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--subtle);
+    align-items: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch {
+    display: inline-block;
+    width: 14px; height: 4px;
+    border-radius: 2px;
+  }
+  .legend-dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  @media (min-width: 720px) {
+    .controls { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .control {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .control-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+    gap: 8px;
+  }
+  .control-label strong { font-weight: 600; }
+  .control-hint { color: var(--subtle); font-size: 11px; }
+  .control-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 15px;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    outline: none;
+    margin: 6px 0;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .results {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  @media (min-width: 720px) {
+    .results { grid-template-columns: 1.2fr 1fr 1fr 1fr; }
+  }
+  .result-card {
+    padding: 12px 14px;
+    background: #f3f4f6;
+    border-radius: 8px;
+  }
+  .result-primary {
+    background: var(--accent-soft);
+    border: 1px solid #bae6fd;
+  }
+  .result-label {
+    font-size: 11px;
+    color: var(--subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .result-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+  .result-primary .result-value {
+    color: var(--accent);
+    font-size: 26px;
+  }
+  .result-sub {
+    font-size: 11px;
+    color: var(--subtle);
+    margin-top: 2px;
+  }
+  details { color: var(--text); font-size: 13px; }
+  details[open] summary { margin-bottom: 8px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .math { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; background: #f3f4f6; padding: 8px 10px; border-radius: 6px; margin: 6px 0; white-space: pre-wrap; }
+  footer { text-align: center; color: var(--subtle); font-size: 11px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>凸面镜摄影对焦计算器</h1>
+    <div class="subtitle">胶片相机拍摄凸面镜时，对焦距离 ≠ 镜面距离。此处实时计算 <strong>相机到虚像</strong> 的距离。</div>
+  </header>
+
+  <div class="panel">
+    <div class="diagram-wrapper">
+      <svg class="diagram" id="diagram" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:#0ea5e9;height:3px"></span>凸面镜</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#111827"></span>相机</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>物体</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#ef4444;opacity:0.35"></span>虚像</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#ef4444"></span>实际光线</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#ef4444;opacity:0.5;border-top:1px dashed #ef4444;background:transparent"></span>虚像延长线</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#a855f7"></span>焦点 F</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+
+      <div class="control">
+        <div class="control-label">
+          <strong>相机距凸面镜</strong>
+          <span class="control-value" id="cameraDistVal">100 cm</span>
+        </div>
+        <input type="range" id="cameraDist" min="0" max="500" step="1" value="100">
+        <div class="control-hint">0 – 5 m　·　2 m 以内 5 cm 刻度，2 m 以外 10 cm 刻度</div>
+      </div>
+
+      <div class="control">
+        <div class="control-label">
+          <strong>对焦物体距凸面镜</strong>
+          <span class="control-value" id="objDistVal">300 cm</span>
+        </div>
+        <input type="range" id="objDist" min="0" max="1000" step="1" value="420">
+        <div class="control-hint">10 cm – ∞　·　对数映射，右端为无穷远</div>
+      </div>
+
+      <div class="control">
+        <div class="control-label">
+          <strong>凸面镜曲率半径 R</strong>
+          <span class="control-value" id="radiusVal">25 cm</span>
+        </div>
+        <input type="range" id="radius" min="0" max="1000" step="1" value="350">
+        <div class="control-hint">球体直径 10 – 500 cm（半径 5 – 250 cm）</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="panel results">
+    <div class="result-card result-primary">
+      <div class="result-label">相机对焦距离</div>
+      <div class="result-value" id="focusDist">—</div>
+      <div class="result-sub">= 相机到镜面 + 虚像至镜后距离</div>
+    </div>
+    <div class="result-card">
+      <div class="result-label">虚像位置（镜后）</div>
+      <div class="result-value" id="imageDist">—</div>
+      <div class="result-sub" id="imageDistSub">|d<sub>i</sub>|</div>
+    </div>
+    <div class="result-card">
+      <div class="result-label">焦距 f</div>
+      <div class="result-value" id="focalLen">—</div>
+      <div class="result-sub">= R / 2</div>
+    </div>
+    <div class="result-card">
+      <div class="result-label">成像倍率</div>
+      <div class="result-value" id="magnification">—</div>
+      <div class="result-sub">虚像相对物体的大小</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <details>
+      <summary>计算原理与假设</summary>
+      <p>凸面镜焦距 <em>f</em> = −R/2（光学凸面镜的焦点位于镜后，取负值）。镜成像方程：</p>
+      <div class="math">1/d_o + 1/d_i = 1/f = −2/R</div>
+      <p>代入物距 d<sub>o</sub>（物体到镜面顶点的距离）：</p>
+      <div class="math">d_i = − R · d_o / (2 · d_o + R)</div>
+      <p>d<sub>i</sub> 为负值，表示虚像位于镜后 |d<sub>i</sub>| 处。相机对焦距离：</p>
+      <div class="math">D_focus = d_camera + |d_i|</div>
+      <p>假设：薄镜/近轴近似；对焦距离从相机机身量起（近似视为镜头节点）；视场中物体与光轴夹角不大。实际工程中 R 与镜面口径决定了可成像范围，此工具不考虑视野边缘畸变。</p>
+    </details>
+  </div>
+
+  <footer>本页面为纯前端静态工具，所有计算在你的浏览器中完成。</footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- DOM ----------
+  const svg = document.getElementById('diagram');
+  const cameraSlider = document.getElementById('cameraDist');
+  const objSlider    = document.getElementById('objDist');
+  const radiusSlider = document.getElementById('radius');
+
+  const cameraValEl = document.getElementById('cameraDistVal');
+  const objValEl    = document.getElementById('objDistVal');
+  const radiusValEl = document.getElementById('radiusVal');
+
+  const focusDistEl    = document.getElementById('focusDist');
+  const imageDistEl    = document.getElementById('imageDist');
+  const focalLenEl     = document.getElementById('focalLen');
+  const magnificationEl= document.getElementById('magnification');
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  // ---------- Slider mapping ----------
+  // Camera distance: 0..500cm. Snap to 5cm below 200, 10cm above 200.
+  function mapCameraDist(raw) {
+    const v = Math.max(0, Math.min(500, parseFloat(raw)));
+    if (v <= 200) return Math.round(v / 5) * 5;
+    return Math.round(v / 10) * 10;
+  }
+
+  // Object distance: slider 0..1000 maps logarithmically to 10cm .. 10000cm (100m).
+  // slider = 1000 => Infinity sentinel.
+  function mapObjectDist(raw) {
+    const s = Math.max(0, Math.min(1000, parseFloat(raw)));
+    if (s >= 999) return Infinity;
+    const frac = s / 1000;           // 0..0.999
+    // distance in cm: 10 * 1000^frac  => at frac=0: 10, frac=1: 10000
+    const d = 10 * Math.pow(1000, frac);
+    return snapDistance(d);
+  }
+  function snapDistance(d) {
+    if (d < 200) return Math.round(d / 5) * 5;
+    if (d < 2000) return Math.round(d / 10) * 10;
+    return Math.round(d / 100) * 100;
+  }
+
+  // Radius: slider 0..1000 => R 5cm .. 250cm, roughly logarithmic so the small end has resolution.
+  function mapRadius(raw) {
+    const s = Math.max(0, Math.min(1000, parseFloat(raw)));
+    const frac = s / 1000;
+    const R = 5 * Math.pow(50, frac); // 5 .. 5*50=250
+    if (R < 20) return Math.round(R * 2) / 2;  // 0.5 cm
+    if (R < 100) return Math.round(R);          // 1 cm
+    return Math.round(R / 5) * 5;               // 5 cm
+  }
+
+  // ---------- Formatters ----------
+  function fmt(d) {
+    if (!isFinite(d)) return '∞';
+    if (d >= 100) return (d / 100).toFixed(d >= 1000 ? 1 : 2).replace(/\.00$/, '') + ' m';
+    return d.toFixed(d % 1 === 0 ? 0 : 1) + ' cm';
+  }
+  function fmtCompact(d) {
+    if (!isFinite(d)) return '∞';
+    if (d >= 100) {
+      const m = d / 100;
+      return m.toFixed(m >= 10 ? 1 : 2).replace(/\.00$/, '') + ' m';
+    }
+    return d.toFixed(d % 1 === 0 ? 0 : 1) + ' cm';
+  }
+
+  // ---------- Physics ----------
+  // Convex mirror: f = -R/2. Returns {di (signed, negative for virtual), |di|, m}.
+  function computeImage(dObj, R) {
+    if (!isFinite(dObj)) {
+      const di = -R / 2;
+      return { di: di, abs: Math.abs(di), m: 0 };
+    }
+    // 1/di = -2/R - 1/do
+    const inv_di = -2 / R - 1 / dObj;
+    const di = 1 / inv_di;
+    const m = -di / dObj; // positive, <1 for convex mirror (upright reduced)
+    return { di: di, abs: Math.abs(di), m: m };
+  }
+
+  // ---------- SVG helpers ----------
+  function el(tag, attrs, children) {
+    const e = document.createElementNS(SVG_NS, tag);
+    if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (children) children.forEach(c => e.appendChild(c));
+    return e;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+  // ---------- Diagram ----------
+  // Layout is schematic (not to scale): distances are log-compressed so all
+  // elements stay visible, and the mirror keeps a fixed on-screen aperture
+  // height regardless of R — only its curvature changes.
+  const VIEW_W = 220;
+  const VIEW_H = 100;
+  const MIRROR_APERTURE = 54;   // fixed on-screen aperture height
+  const REF_R_MIN = 5;          // at R = 5 cm, drawn mirror == full hemisphere
+
+  // Log-compressed x-position (in SVG units) for a real distance in cm.
+  function xVis(d) {
+    if (!isFinite(d)) return 102;                 // "infinity" clamp
+    return 32 * Math.log10(1 + d / 10);
+  }
+
+  function drawDiagram(dc, dObj, R, image) {
+    clear(svg);
+    svg.setAttribute('viewBox',
+      `${-VIEW_W/2} ${-VIEW_H/2} ${VIEW_W} ${VIEW_H}`);
+
+    // --- Scene positions (schematic) ---
+    const camXv   = -xVis(dc);
+    const objXv   = -xVis(isFinite(dObj) ? dObj : 1e9);
+    const imgXv   =  xVis(image.abs);
+    const focalXv =  xVis(R / 2);
+
+    // --- Mirror geometry in drawing space ---
+    // drawnR scales linearly with real R relative to REF_R_MIN; at R=5 we get
+    // a full hemisphere (drawnR = aperture/2); large R → nearly flat arc.
+    const drawnR   = (R / REF_R_MIN) * (MIRROR_APERTURE / 2);
+    const halfAp   = MIRROR_APERTURE / 2;
+    const sinTheta = Math.min(halfAp / drawnR, 1.0);
+    const theta    = Math.asin(sinTheta);
+    const topY     = -halfAp;
+    const bottomY  =  halfAp;
+    const edgeX    = drawnR * (1 - Math.cos(theta));
+
+    // --- Optical axis ---
+    svg.appendChild(el('line', {
+      x1: -VIEW_W/2 + 2, y1: 0, x2: VIEW_W/2 - 2, y2: 0,
+      stroke: '#cbd5e1', 'stroke-width': 0.35,
+      'stroke-dasharray': '1.8 1.4'
+    }));
+
+    // --- Mirror (solid line, sampled arc to avoid SVG arc edge cases) ---
+    const N = 48;
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const ang = -theta + (2 * theta) * (i / N);
+      const px = drawnR - drawnR * Math.cos(ang);
+      const py = drawnR * Math.sin(ang);
+      pts.push(`${px.toFixed(3)},${py.toFixed(3)}`);
+    }
+    svg.appendChild(el('polyline', {
+      points: pts.join(' '),
+      stroke: '#0ea5e9', 'stroke-width': 2.2,
+      fill: 'none',
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round'
+    }));
+
+    // --- Focal point F (label placed below axis to avoid colliding with img label) ---
+    svg.appendChild(el('circle', {cx: focalXv, cy: 0, r: 1.2, fill: '#a855f7'}));
+    svg.appendChild(el('text', {
+      x: focalXv, y: 5.0, 'text-anchor': 'middle',
+      'font-size': 3.8, fill: '#a855f7',
+      'font-family': 'system-ui, sans-serif'
+    }, [document.createTextNode('F')]));
+
+    // --- Object (upward arrow) ---
+    // For object at infinity, clamp to left edge so label stays on-screen.
+    const objClamped = !isFinite(dObj);
+    const objDrawX = objClamped ? Math.max(objXv, -VIEW_W/2 + 10) : objXv;
+    const objY = -halfAp * 0.78;
+    const ah = 2.0;
+    svg.appendChild(el('line', {
+      x1: objDrawX, y1: 0, x2: objDrawX, y2: objY,
+      stroke: '#ef4444', 'stroke-width': 1.4,
+      opacity: objClamped ? 0.55 : 1
+    }));
+    svg.appendChild(el('polygon', {
+      points: `${objDrawX},${objY} ${objDrawX - ah},${objY + ah*1.3} ${objDrawX + ah},${objY + ah*1.3}`,
+      fill: '#ef4444',
+      opacity: objClamped ? 0.55 : 1
+    }));
+    svg.appendChild(el('text', {
+      x: objDrawX, y: objY - 2.4, 'text-anchor': 'middle',
+      'font-size': 3.6, fill: '#ef4444',
+      'font-family': 'system-ui, sans-serif'
+    }, [document.createTextNode(objClamped ? '物体 @ ∞' : '物体')]));
+
+    // --- Virtual image (dashed arrow) ---
+    const imgY = objY * image.m;
+    if (Math.abs(imgY) > 0.2) {
+      svg.appendChild(el('line', {
+        x1: imgXv, y1: 0, x2: imgXv, y2: imgY,
+        stroke: '#ef4444', 'stroke-width': 1.1,
+        'stroke-dasharray': '1.8 1.4', opacity: 0.55
+      }));
+      svg.appendChild(el('polygon', {
+        points: `${imgXv},${imgY} ${imgXv - ah*0.8},${imgY + ah*1.1} ${imgXv + ah*0.8},${imgY + ah*1.1}`,
+        fill: '#ef4444', opacity: 0.5
+      }));
+    }
+    svg.appendChild(el('text', {
+      x: imgXv, y: imgY - 2.2, 'text-anchor': 'middle',
+      'font-size': 3.2, fill: '#ef4444', opacity: 0.75,
+      'font-family': 'system-ui, sans-serif'
+    }, [document.createTextNode('虚像')]));
+
+    // --- Camera icon ---
+    const cw = 7.2, chh = 5.0;
+    svg.appendChild(el('rect', {
+      x: camXv - cw/2, y: -chh/2, width: cw, height: chh,
+      rx: 0.7, fill: '#111827'
+    }));
+    // lens
+    svg.appendChild(el('rect', {
+      x: camXv + cw/2 - 0.3, y: -chh/4, width: cw*0.38, height: chh/2,
+      fill: '#111827'
+    }));
+    // viewfinder hump
+    svg.appendChild(el('rect', {
+      x: camXv - cw*0.12, y: -chh/2 - 1.0, width: cw*0.28, height: 1.1,
+      fill: '#111827'
+    }));
+    svg.appendChild(el('text', {
+      x: camXv, y: chh/2 + 3.8, 'text-anchor': 'middle',
+      'font-size': 3.6, fill: '#111827',
+      'font-family': 'system-ui, sans-serif'
+    }, [document.createTextNode('相机')]));
+
+    // --- Rays: object → mirror → camera, plus dashed extension to virtual image ---
+    if (isFinite(image.abs) && image.abs > 0) {
+      // Find reflection point: intersection of line (camera → virtual image)
+      // with the drawn mirror arc (sphere centered at (drawnR, 0), radius drawnR).
+      const A = imgXv - camXv;
+      const B = imgY;
+      const K = camXv - drawnR;
+      const qa = A*A + B*B;
+      const qb = 2 * K * A;
+      const qc = K*K - drawnR*drawnR;
+      const disc = qb*qb - 4*qa*qc;
+      let rx = null, ry = null;
+      if (disc >= 0 && qa > 1e-9) {
+        const t1 = (-qb - Math.sqrt(disc)) / (2*qa);
+        const t2 = (-qb + Math.sqrt(disc)) / (2*qa);
+        for (const t of [t1, t2]) {
+          if (t > 0 && t < 1.5) {
+            const xi = camXv + t * A;
+            if (xi <= edgeX + 0.2 && xi >= -0.2) {
+              rx = xi; ry = t * B; break;
+            }
+          }
+        }
+      }
+      if (rx === null) {
+        // Fallback: place at mirror vertex on the camera→image line where it crosses x=0
+        const t = -camXv / A;
+        rx = 0; ry = t * B;
+      }
+
+      // Incident ray (object → reflection point). For object@∞ the image is
+      // at F with zero size, so we also draw a parallel-ray indicator at a
+      // visible height so the schematic isn't degenerate along the axis.
+      svg.appendChild(el('line', {
+        x1: objDrawX, y1: objY, x2: rx, y2: ry,
+        stroke: '#ef4444', 'stroke-width': 0.9, opacity: 0.85
+      }));
+      if (objClamped) {
+        // A second parallel ray, above axis, reflecting virtually through F
+        const hh = halfAp * 0.35;
+        // find reflection point on arc at y = hh (approx)
+        const rxP = drawnR - Math.sqrt(Math.max(drawnR*drawnR - hh*hh, 0));
+        svg.appendChild(el('line', {
+          x1: -VIEW_W/2 + 2, y1: -hh, x2: rxP, y2: -hh,
+          stroke: '#ef4444', 'stroke-width': 0.7, opacity: 0.55
+        }));
+        svg.appendChild(el('line', {
+          x1: rxP, y1: -hh, x2: focalXv, y2: 0,
+          stroke: '#ef4444', 'stroke-width': 0.7,
+          'stroke-dasharray': '1.6 1.4', opacity: 0.45
+        }));
+      }
+      // Reflected ray (reflection point → camera)
+      svg.appendChild(el('line', {
+        x1: rx, y1: ry, x2: camXv, y2: 0,
+        stroke: '#ef4444', 'stroke-width': 0.9, opacity: 0.85
+      }));
+      // Virtual extension (through mirror to virtual image)
+      svg.appendChild(el('line', {
+        x1: rx, y1: ry, x2: imgXv, y2: imgY,
+        stroke: '#ef4444', 'stroke-width': 0.7,
+        'stroke-dasharray': '1.6 1.4', opacity: 0.55
+      }));
+      // Reflection point marker
+      svg.appendChild(el('circle', {cx: rx, cy: ry, r: 0.7, fill: '#ef4444'}));
+    }
+
+    // --- Distance brackets (schematic; labeled with real values) ---
+    function bracket(x1, x2, y, text, color) {
+      const h = 1.6;
+      const g = el('g', {});
+      g.appendChild(el('line', {x1: x1, y1: y, x2: x2, y2: y, stroke: color, 'stroke-width': 0.3}));
+      g.appendChild(el('line', {x1: x1, y1: y-h, x2: x1, y2: y+h, stroke: color, 'stroke-width': 0.3}));
+      g.appendChild(el('line', {x1: x2, y1: y-h, x2: x2, y2: y+h, stroke: color, 'stroke-width': 0.3}));
+      g.appendChild(el('text', {
+        x: (x1+x2)/2, y: y + 3.4, 'text-anchor': 'middle',
+        'font-size': 3.0, fill: color,
+        'font-family': 'system-ui, sans-serif'
+      }, [document.createTextNode(text)]));
+      svg.appendChild(g);
+    }
+    bracket(camXv, 0, VIEW_H/2 * 0.56, `相机→镜 ${fmtCompact(dc)}`, '#64748b');
+    if (isFinite(dObj)) {
+      bracket(objXv, 0, VIEW_H/2 * 0.76, `物→镜 ${fmtCompact(dObj)}`, '#64748b');
+    }
+    if (isFinite(image.abs) && image.abs > 0) {
+      bracket(camXv, imgXv, -VIEW_H/2 * 0.78,
+        `对焦距离 ${fmtCompact(dc + image.abs)}`, '#0ea5e9');
+    }
+
+    // --- "not to scale" hint ---
+    svg.appendChild(el('text', {
+      x: VIEW_W/2 - 3, y: VIEW_H/2 - 2,
+      'text-anchor': 'end', 'font-size': 2.6, fill: '#94a3b8',
+      'font-family': 'system-ui, sans-serif'
+    }, [document.createTextNode('示意图 · 非按比例绘制')]));
+  }
+
+  // ---------- Update loop ----------
+  function update() {
+    const dc   = mapCameraDist(cameraSlider.value);
+    const dObj = mapObjectDist(objSlider.value);
+    const R    = mapRadius(radiusSlider.value);
+
+    const image = computeImage(dObj, R);
+    const focus = dc + image.abs;
+    const focal = R / 2;
+
+    cameraValEl.textContent = fmt(dc);
+    objValEl.textContent    = isFinite(dObj) ? fmt(dObj) : '∞ (无穷远)';
+    radiusValEl.textContent = fmt(R) + `　· 直径 ${fmt(2*R)}`;
+
+    focusDistEl.textContent     = fmt(focus);
+    imageDistEl.textContent     = fmt(image.abs);
+    focalLenEl.textContent      = '−' + fmt(focal);
+    magnificationEl.textContent = image.m.toFixed(3) + '×';
+
+    drawDiagram(dc, dObj, R, image);
+  }
+
+  // Attach listeners
+  [cameraSlider, objSlider, radiusSlider].forEach(s => {
+    s.addEventListener('input', update);
+    s.addEventListener('change', update);
+  });
+
+  // Redraw on resize so the SVG rescales nicely
+  window.addEventListener('resize', update);
+
+  update();
+})();
+</script>
+</body>
+</html>
